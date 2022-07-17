@@ -1,0 +1,83 @@
+---
+title: "Relatório PE"
+author: "Antonia Xavier, Francisco Rubens, Maria Sylvia"
+date: "15/07/2022"
+output:
+  pdf_document: default
+  word_document: default
+---
+# Introdução  
+
+O objetivo do nosso trabalho é utilizar cadeias de Markov para montar um modelo preditivo para dois dos principais índices de preços do Brasil: o índice nacional de preços ao consumidor (INPC) índice de preços ao consumidor amplo (IPCA) para alimentos.
+
+
+# Materiais e métodos  
+
+  O IPCA e INPC são ambos coletado de forma sistemática pelo SNIPC - Sistema Nacional de índice de preços ao consumidor - pelo IBGE Segundo a instituição população relativa ao IPCA são famílias de 1 a 40 salários mínimos, seja qual for a fonte de tal renda. A abrangência da pesquisa é restrita à áreas urbanas e regiões metropolitanas das cidades de  Belém, Fortaleza, Recife, Salvador, Belo Horizonte, Vitória, Rio de Janeiro, São Paulo, Curitiba, Porto Alegre, Goiânia, Campo Grande, Rio Branco, São Luís, Brasília e Aracaju. Enquanto isso, o INPC 
+  Para utilizar cadeias de Markov neste trabalho foi necessário utilizar como hipóteses que tanto o INPC quanto o IPCA de alimentação podem ser descritos como processos estocásticos, ou seja, variáveis aleatórias indexadas por uma variável, no caso tempo, sendo este medido em meses e mais além supomos que trata-se de um processo Markoviano, ou seja, o valor de ambos os índices de preços em determinado mês sofre influência somente de seu valor no mês anterior e não mais que isso.
+  
+# Análise
+
+  Para as análises será usada a base de dados de INPC e IPCA disponibilizadas pela professora. A base foi convertida para o formato xlsx, e será esse arquivo que será lido.
+  
+```{r, warning=FALSE}
+library(readxl)
+dados <- read_excel("INPC_IPCA.xlsx", 
+                    col_types = c("date", "numeric", "numeric", "text", "text"))
+
+colnames(dados) <-  c("data", "inpc", "ipca_alimentacao", "ipca_habitacao", "ipca_saude")
+
+dados1979_2019 <- dados[dados$data < "2019-04-01",]
+
+dados1992_2021 <- dados[(dados$data <= "2021-01-01") & (dados$data >= "1992-01-01"),]
+```
+
+Abaixo as funções que serão usadas para calcular as matrizes de transição.
+
+```{r}
+freq <- function(dados) {
+  frequencia <- matrix(rep(0,4*4), nrow = 4, ncol = 4)
+  for(index in 2:length(dados)) {
+    frequencia[dados[index-1],dados[index]] = frequencia[dados[index-1],dados[index]] + 1 
+  }
+  return(frequencia)
+}
+
+matriz.transicao <- function(dados) {
+  frequencia <- freq(dados)
+  for(estado in as.numeric(attributes(dados)$levels)) {
+    frequencia[,estado] <- frequencia[,estado]/sum(frequencia[,estado])  
+  }
+  return(frequencia)
+}
+```
+
+## Índice nacional de preços ao consumidor (INPC)
+
+Primeiro será calculada a matriz de transição usando os dados de 1979 a 2019.  
+
+```{r}
+intervalos.inpc <- cut(dados1979_2019$inpc, breaks=c(quantile(dados1979_2019$inpc, probs=seq(0,1, by=0.25))), labels=c(1,2,3,4))
+
+intervalos.inpc[is.na(intervalos.inpc)] <- 1
+
+matriz.transicao.inpc <- matriz.transicao(intervalos.inpc)
+
+matriz.transicao.inpc
+```
+
+## Índice de preços ao consumidor amplo (IPCA) para alimentos  
+
+Primeiro será calcula da matriz de transição usando os dados de 1992 a 2021
+
+```{r}
+intervalos.ipca <- cut(dados1992_2021$ipca_alimentacao, breaks=c(quantile(dados1992_2021$ipca_alimentacao, probs=seq(0,1, by=0.25))), labels=c(1,2,3,4))
+
+matriz.transicao.ipca <- matriz.transicao(intervalos.ipca)
+
+matriz.transicao.ipca
+```
+
+
+
+

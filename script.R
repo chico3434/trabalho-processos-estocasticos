@@ -1,14 +1,12 @@
 library(readxl)
-
 dados <- read_excel("INPC_IPCA.xlsx", 
-                    col_types = c("date", "numeric", "numeric", 
-                                  "text", "text"))
+                    col_types = c("date", "numeric", "numeric", "text", "text"))
 
 colnames(dados) <-  c("data", "inpc", "ipca_alimentacao", "ipca_habitacao", "ipca_saude")
 
-intervalos.inpc <- cut(dados$inpc, breaks=c(quantile(dados$inpc, probs=seq(0,1, by=0.25))), labels=c(1,2,3,4))
+dados1979_2019 <- dados[dados$data < "2019-04-01",]
 
-intervalos.inpc[is.na(intervalos.inpc)] <- 1
+dados1992_2021 <- dados[(dados$data <= "2021-01-01") & (dados$data >= "1992-01-01"),] 
 
 freq <- function(dados) {
   frequencia <- matrix(rep(0,4*4), nrow = 4, ncol = 4)
@@ -19,12 +17,24 @@ freq <- function(dados) {
 }
 
 matriz.transicao <- function(dados) {
-  frequencia <- freq(intervalos.inpc)
+  frequencia <- freq(dados)
   for(estado in as.numeric(attributes(dados)$levels)) {
     frequencia[,estado] <- frequencia[,estado]/sum(frequencia[,estado])  
   }
   return(frequencia)
 }
 
-m <- matriz.transicao(intervalos.inpc)
+intervalos.inpc <- cut(dados1979_2019$inpc, breaks=c(quantile(dados1979_2019$inpc, probs=seq(0,1, by=0.25))), labels=c(1,2,3,4))
+
+intervalos.inpc[is.na(intervalos.inpc)] <- 1
+
+matriz.transicao.inpc <- matriz.transicao(intervalos.inpc)
+
+intervalos.ipca <- cut(dados1992_2021$ipca_alimentacao, breaks=c(quantile(dados1992_2021$ipca_alimentacao, probs=seq(0,1, by=0.25))), labels=c(1,2,3,4))
+
+matriz.transicao.ipca <- matriz.transicao(intervalos.ipca)
+
+matriz.transicao.inpc
+
+matriz.transicao.ipca
 
