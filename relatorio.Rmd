@@ -46,7 +46,7 @@ freq <- function(dados) {
 matriz.transicao <- function(dados) {
   frequencia <- freq(dados)
   for(estado in as.numeric(attributes(dados)$levels)) {
-    frequencia[,estado] <- frequencia[,estado]/sum(frequencia[,estado])  
+    frequencia[estado,] <- frequencia[estado,]/sum(frequencia[estado,])  
   }
   return(frequencia)
 }
