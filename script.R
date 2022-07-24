@@ -38,3 +38,45 @@ matriz.transicao.inpc
 
 matriz.transicao.ipca
 
+## verificar modelo
+
+prever <- function(matriz, x0) {
+  return(which.max(matriz[x0,]))
+}
+
+dados2019_atual <- dados[dados$data >= "2019-04-01",]
+
+intervalos.inpc.teste <- cut(dados2019_atual$inpc, breaks=c(quantile(dados1979_2019$inpc, probs=seq(0,1, by=0.25))), labels=c(1,2,3,4))
+
+dados2021_atual <- dados[dados$data > "2021-01-01",] 
+
+intervalos.ipca.teste <- cut(dados2021_atual$ipca_alimentacao, breaks=c(quantile(dados1992_2021$ipca_alimentacao, probs=seq(0,1, by=0.25))), labels=c(1,2,3,4))
+
+prever.todos <- function(matriz, dados, x0) {
+  previsao <- c()
+  for(index in 1:length(dados)) {
+    previsao[index] <- prever(matriz, x0)
+    x0 <- dados[index]
+  }
+  return(previsao)
+}
+
+acuracia <- function(matriz, dados, x0) {
+  previsao <- prever.todos(matriz, dados, x0)
+  acertos <- previsao == dados
+  return(sum(acertos)/length(previsao))
+}
+
+x0 <- intervalos.inpc[length(intervalos.inpc)]
+
+previsao <- prever.todos(matriz.transicao.inpc, intervalos.inpc.teste, x0)
+intervalos.inpc.teste
+previsao == intervalos.inpc.teste
+acertos <- previsao == intervalos.inpc.teste
+acertos
+sum(acertos)
+sum(acertos)/length(previsao)
+
+acuracia(matriz.transicao.inpc, intervalos.inpc.teste, x0)
+x0 <- intervalos.ipca[length(intervalos.ipca)]
+acuracia(matriz.transicao.ipca, intervalos.ipca.teste, x0)
