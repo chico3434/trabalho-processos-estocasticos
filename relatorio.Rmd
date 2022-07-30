@@ -3,40 +3,96 @@ title: "Relatório PE"
 author: "Antonia Xavier, Francisco Rubens, Maria Sylvia"
 date: "15/07/2022"
 output:
-  pdf_document: default
   word_document: default
+  pdf_document: default
 ---
 # Introdução  
 
-O objetivo do nosso trabalho é utilizar cadeias de Markov para montar um modelo preditivo para dois dos principais índices de preços do Brasil: o índice nacional de preços ao consumidor (INPC) índice de preços ao consumidor amplo (IPCA) para alimentos.
-
+  O objetivo deste trabalho é utilizar cadeias de Markov para montar um modelo preditivo para dois dos principais índices de preços do Brasil: o índice nacional de preços ao consumidor (INPC) índice de preços ao consumidor amplo (IPCA) para alimentos. Avaliamos a homogeneidade da cadeia e como o número de categorias influencia a acurácia da predição, chegando à conclusão de que a melhor matriz para a predição do IPCA e do INPC são aquelas as quais utiliza-se a média dos valores, obteve-se uma acurácia de 97% e de 100%, respectivamente.
 
 # Materiais e métodos  
 
-  O IPCA e INPC são ambos coletado de forma sistemática pelo SNIPC - Sistema Nacional de índice de preços ao consumidor - pelo IBGE Segundo a instituição população relativa ao IPCA são famílias de 1 a 40 salários mínimos, seja qual for a fonte de tal renda. A abrangência da pesquisa é restrita à áreas urbanas e regiões metropolitanas das cidades de  Belém, Fortaleza, Recife, Salvador, Belo Horizonte, Vitória, Rio de Janeiro, São Paulo, Curitiba, Porto Alegre, Goiânia, Campo Grande, Rio Branco, São Luís, Brasília e Aracaju. Enquanto isso, o INPC 
-  Para utilizar cadeias de Markov neste trabalho foi necessário utilizar como hipóteses que tanto o INPC quanto o IPCA de alimentação podem ser descritos como processos estocásticos, ou seja, variáveis aleatórias indexadas por uma variável, no caso tempo, sendo este medido em meses e mais além supomos que trata-se de um processo Markoviano, ou seja, o valor de ambos os índices de preços em determinado mês sofre influência somente de seu valor no mês anterior e não mais que isso.
+  O IPCA e INPC são ambos coletados de forma sistemática pelo SNIPC - Sistema Nacional de índice de preços ao consumidor - pelo IBGE. A população relativa ao IPCA são famílias de 1 a 40 salários mínimos, enquanto a do INPC abrange famílias de 1 a 5 salários mínimos, seja qual for a fonte de tal renda. A abrangência da pesquisa é restrita à áreas urbanas e regiões metropolitanas das cidades de Belém, Fortaleza, Recife, Salvador, Belo Horizonte, Vitória, Rio de Janeiro, São Paulo, Curitiba, Porto Alegre, Goiânia, Campo Grande, Rio Branco, São Luís, Brasília e Aracaju.
+  Para utilizar cadeias de Markov neste trabalho foi necessário utilizar como hipóteses que tanto o INPC quanto o IPCA para o grupo “Alimentação e bebidas” podem ser descritos como processos estocásticos. Ou seja, que são variáveis aleatórias indexadas por uma variável, neste caso tempo, sendo este medido em meses. E mais além supomos que se trata de um processo Markoviano, ou seja, os valores de ambos os índices de preços em determinado mês sofrem influência somente de seus valores no mês anterior e não mais que isso.
+  Definimos a classe dos estados a partir da divisão em quartis, sendo o intervalo até o primeiro quartil o estado 0, o intervalo entre o primeiro e o segundo quartis o estado 1, o intervalo entre o segundo e o terceiro quartis o estado 2 e o intervalo entre o terceiro e o quarto quartis o estado 3. Os dados foram divididos em 75% para a construção da cadeia e 25% para realizar a avalição da qualidade da predição e o estado predito no tempo foi definido a partir da classe com maior probabilidade predita.  
+
   
 # Análise
 
-  Para as análises será usada a base de dados de INPC e IPCA disponibilizadas pela professora. A base foi convertida para o formato xlsx, e será esse arquivo que será lido.
+  Utilizamos a base de dados dos índices INPC e IPCA disponibilizada pela professora. A base foi convertida para o formato xlsx, e será esse arquivo que será lido. Separamos os dados em 25% para teste e 75% para analise Carregamos também o pacote ggplot2 que será utilizado para fazer as análises. 
   
-```{r, warning=FALSE}
+```{r warning=FALSE}
+
 library(readxl)
+library(ggplot2)
+
 dados <- read_excel("INPC_IPCA.xlsx", 
                     col_types = c("date", "numeric", "numeric", "text", "text"))
 
 colnames(dados) <-  c("data", "inpc", "ipca_alimentacao", "ipca_habitacao", "ipca_saude")
 
-dados1979_2019 <- dados[dados$data < "2019-04-01",]
+dados_analise <- dados[dados$data < "2011-09-01",]
 
-dados1992_2021 <- dados[(dados$data <= "2021-01-01") & (dados$data >= "1992-01-01"),]
+dados_teste <- dados[dados$data >= "2011-09-01",]
+
 ```
 
-Abaixo as funções que serão usadas para calcular as matrizes de transição.
+
+# Análise descritiva dos dados
+
+  A nossa série de dados consta com 518 linhas organizadas em uma série histórica mensal que começa em abril de 1979 para o INPC e em dezembro de 1991 para o IPCA. Observamos o gráfico de dispersão dos nossos dados ao longo do tempo
 
 ```{r}
-freq <- function(dados) {
-  frequencia <- matrix(rep(0,4*4), nrow = 4, ncol = 4)
+
+par(mfrow=c(2,1))
+plot(dados$data, dados$inpc, main =  "INPC ao longo do tempo", xlab = "Ano", ylab = "INPC")
+plot(dados$data, dados$ipca_alimentacao, main = "IPCA ao longo do tempo", xlab = "Ano", ylab = "IPCA alimentacao")
+
+```
+  Observamos há uma parte dos dados em que existem muitos outliers com valores muito altos. Identificamos que estes dados destoantes poderiam estar prejudicando nosso modelo. Este período que se estendeu desde meados dos anos 1980 até 1990 é um período em que houve hiperinflação. O Brasil passou por trocas de moedas diversas vezes em uma tentativa de amenizar a taxa, entretanto só houve melhora com o plano Real, que foi lançado em 1994.  Decidimos, então, observar os valores de INPC e IPCA com base na moeda utilizada no período.  Vejamos os gráficos para o INPC de acordo com cada moeda brasileira desde abril de 1979.
+  
+```{r}
+
+cruzeiro <- dados[dados$data < "1986-02-01",]
+cruzado <- dados[(dados$data <= "1989-01-01") & (dados$data >= "1986-02-01"),] 
+cruzado.novo <- dados[(dados$data <= "1990-03-01") & (dados$data >= "1989-01-01"),] 
+cruzeiro90 <-  dados[(dados$data <= "1993-07-01") & (dados$data >= "1990-03-01"),] 
+cruzeiro.real <-  dados[(dados$data <= "1994-06-01") & (dados$data >= "1993-07-01"),] 
+real <-  dados[dados$data >= "1994-07-01",] 
+
+ggplot(cruzeiro, aes(y = inpc, x = data)) + geom_point(shape = 1, size = 3) + labs(title = "Cruzeiro (Cr$) ", subtitle =  "INPC para o cruzeiro, moeda oficial entre 15/05/1970 a 27/02/1986")
+ggplot(cruzado, aes(y = inpc, x = data)) + geom_point(shape = 1, size = 3) + labs(title = "Cruzado (CZ$)", subtitle =  "INPC para o Cruzado, moeda oficial de 28/02/1986 a 15/01/1989. Um Cruzado equivalia a mil cruzeiros,
+Cr$ 1.000,00 = CZ$ 1,00")
+ggplot(cruzado.novo, aes(y = inpc, x = data)) + geom_point(shape = 1, size = 3) + labs(title = "Cruzado Novo (NCZ$)", subtitle =  "INPC para o Cruzado Novo, moeda oficial de 16/01/1989 a 15/03/1990.
+Um Cruzado Novo equivale a mil cruzados, CZ$ 1.000,00 = NCZ$ 1,00" )
+ggplot(cruzeiro90, aes(y = inpc, x = data)) + geom_point(shape = 1, size = 3) + labs(title = "Cruzeiro (Cr$)", subtitle =  "INPC para o Cruzeiro, moeda oficial de 16/03/1990 a 31/07/1993
+Cruzeiro equivalia a um Cruzado Novo, ou seja, NCZ$ 1,00 = Cr$ 1,00") 
+ggplot(cruzeiro.real, aes(y = inpc, x = data)) + geom_point(shape = 1, size = 3) + labs(title = "Cruzeiro Real (Cr$)", subtitle =  "INPC para o Cruzeiro Real, moeda oficial de 01/08/1993 a 30/06/1994
+Um Cruzeiro Real equivalia a mil Cruzeiros, ou seja, CR$ 1.000.00=CR$ 1,00")
+ggplot(real, aes(y = inpc, x = data)) + geom_point(shape = 1, size = 3) + labs(title = "Real (R$)", subtitle =  "INPC para o Real, moeda oficial desde 01/07/1994
+Um Real equivale a dois mil e setecentos e cinquenta cruzeiros reais, ou seja: CR$ 2.750.00=R$ 1,00") 
+
+```
+
+  O IPCA de Alimentação e bebidas começou a ser contabilizado somente em 1991, passando somente pelas moedas Cruzeiro, Cruzeiro Real e Real. Vejamos os gráficos do IPCA levando em consideração essas moedas.
+
+```{r}
+ggplot(cruzeiro90, aes(y = ipca_alimentacao, x = data)) + geom_point(shape = 1, size = 3) + labs(title = "Cruzeiro (Cr$)", subtitle =  "IPCA de alimentos para o Cruzeiro, moeda oficial de 16/03/1990 a 31/07/1993
+Cruzeiro equivalia a um Cruzado Novo, ou seja, NCZ$ 1,00 = Cr$ 1,00") 
+ggplot(cruzeiro.real, aes(y = ipca_alimentacao, x = data)) + geom_point(shape = 1, size = 3) + labs(title = "Cruzeiro Real (Cr$)", subtitle =  "IPCA de Alimenos para o Cruzeiro Real, moeda oficial de 01/08/1993 a 30/06/1994
+Um Cruzeiro Real equivalia a mil Cruzeiros, ou seja, CR$ 1.000.00=CR$ 1,00")
+ggplot(real, aes(y = ipca_alimentacao, x = data)) + geom_point(shape = 1, size = 3) + labs(title = "Real (R$)", subtitle =  "IPCA de Alimentos para o Real, moeda oficial desde 01/07/1994
+Um Real equivale a dois mil e setecentos e cinquenta cruzeiros reais, ou seja: CR$ 2.750.00=R$ 1,00") 
+
+```
+
+  Em seguida, agrupamos os valores acima da média e os abaixo da média. Abaixo as funções que serão usadas para calcular as matrizes de transição e acurácia . 
+
+```{r}
+
+matriz.freq <- function(dados) {
+  numero.estados <- length(attributes(dados)$levels)
+  frequencia <- matrix(rep(0,numero.estados*numero.estados), nrow = numero.estados, ncol = numero.estados)
   for(index in 2:length(dados)) {
     frequencia[dados[index-1],dados[index]] = frequencia[dados[index-1],dados[index]] + 1 
   }
@@ -44,40 +100,151 @@ freq <- function(dados) {
 }
 
 matriz.transicao <- function(dados) {
-  frequencia <- freq(dados)
+  frequencia <- matriz.freq(dados)
   for(estado in as.numeric(attributes(dados)$levels)) {
     frequencia[estado,] <- frequencia[estado,]/sum(frequencia[estado,])  
   }
   return(frequencia)
 }
+
+
+prever <- function(matriz, x0) {
+  return(which.max(matriz[x0,]))
+}
+
+prever.todos <- function(matriz, dados, x0) {
+  previsao <- c()
+  for(index in 1:length(dados)) {
+    previsao[index] <- prever(matriz, x0)
+    x0 <- dados[index]
+  }
+  return(previsao)
+}
+
+acuracia <- function(matriz, dados, x0) {
+  previsao <- prever.todos(matriz, dados, x0)
+  acertos <- previsao == dados
+  return(sum(acertos)/length(previsao))
+}
+
 ```
 
 ## Índice nacional de preços ao consumidor (INPC)
 
-Primeiro será calculada a matriz de transição usando os dados de 1979 a 2019.  
+  Agruparemos os dados de acordo com a média, de forma com que os dados acima da média fiquem em um grupo e os abaixo da média em outro grupo. 
 
 ```{r}
-intervalos.inpc <- cut(dados1979_2019$inpc, breaks=c(quantile(dados1979_2019$inpc, probs=seq(0,1, by=0.25))), labels=c(1,2,3,4))
-
+intervalos.inpc <- cut(dados_analise$inpc, breaks=c(min(dados_analise$inpc), mean(dados_analise$inpc), max(dados_analise$inpc)), labels=c(1,2))
 intervalos.inpc[is.na(intervalos.inpc)] <- 1
 
 matriz.transicao.inpc <- matriz.transicao(intervalos.inpc)
 
-matriz.transicao.inpc
+intervalos.inpc.teste <- cut(dados_teste$inpc, breaks=c(min(dados_analise$inpc), mean(dados_analise$inpc), max(dados_analise$inpc)), labels=c(1,2))
+  
+x0 <- intervalos.inpc[length(intervalos.inpc)]
+
+previsao <- prever.todos(matriz.transicao.inpc, intervalos.inpc.teste, x0)
+
+matriz.transicao.inpc 
+
+acuracia.inpc.media <- acuracia(matriz.transicao.inpc, intervalos.inpc.teste, x0);acuracia.inpc.media
 ```
+
+  A nossa matriz de transição nos diz que, se em determinado mês o valor do INPC é menor que `r round(mean(dados_analise$inpc),2)`, a probabilidade dele continuar abaixo da média é de `r round(matriz.transicao.inpc[1,1]*100,2)`%, que é o valor da primeira linha e primeira coluna. A probabilidade dele crescer para um valor acima da média é de por volta de `r round(matriz.transicao.inpc[1,2]*100,2)`%. Enquanto isso, se o valor em determinado mês estiver acima da média de `r round(mean(dados_analise$inpc),2)`, há `r round(matriz.transicao.inpc[2,1]*100,2)`% de chances de no mês seguinte o valor do INPC cair para abaixo desse valor contra `r round(matriz.transicao.inpc[2,2]*100,2)`% de chances de continuar acima da média. 
+
+```{r}
+intervalos.inpc <- cut(dados_analise$inpc, breaks=c(quantile(dados_analise$inpc, probs=seq(0,1, by=0.25))), labels=c(1,2,3,4))
+intervalos.inpc[is.na(intervalos.inpc)] <- 1
+
+matriz.transicao.inpc <- matriz.transicao(intervalos.inpc)
+
+intervalos.inpc.teste <- cut(dados_teste$inpc, breaks=c(quantile(dados_analise$inpc, probs=seq(0,1, by=0.25))), labels=c(1,2,3,4))
+  
+x0 <- intervalos.inpc[length(intervalos.inpc)]
+
+previsao <- prever.todos(matriz.transicao.inpc, intervalos.inpc.teste, x0)
+
+matriz.transicao.inpc
+
+acuracia.inpc.quartis <- acuracia(matriz.transicao.inpc, intervalos.inpc.teste, x0); acuracia.inpc.quartis
+```
+  
+  Testamos a acurácia para essa predição usando os dados entre agosto de 2011 e  maio de 2022 e encontramos que `r round(acuracia.inpc.media*100,2)`% dos dados desse período foram descritos corretamente conforme essa matriz. Além de utilizar as médias, fizemos testes a partir dos intervalos interquartílicos, entretanto nossa acurácia foi significativamente menor, atingindo o valor aproximado de `r round(acuracia.inpc.quartis*100,2)`%.
+  
+  Por fim, refaremos as matrizes e os cálculos das acurácias levando em consideração somente os dados do plano Real.
+  
+```{r}
+dados_analise <- real[real$data < "2011-09-01",]
+
+dados_teste <- real[real$data >= "2011-09-01",]
+intervalos.inpc <- cut(dados_analise$inpc, breaks=c(min(dados_analise$inpc), mean(dados_analise$inpc), max(dados_analise$inpc)), labels=c(1,2))
+intervalos.inpc[is.na(intervalos.inpc)] <- 1
+
+matriz.transicao.inpc <- matriz.transicao(intervalos.inpc)
+
+intervalos.inpc.teste <- cut(dados_teste$inpc, breaks=c(min(dados_analise$inpc), mean(dados_analise$inpc), max(dados_analise$inpc)), labels=c(1,2))
+  
+x0 <- intervalos.inpc[length(intervalos.inpc)]
+
+previsao <- prever.todos(matriz.transicao.inpc, intervalos.inpc.teste, x0)
+
+matriz.transicao.inpc
+
+acuracia.inpc.real.media <- acuracia(matriz.transicao.inpc, intervalos.inpc.teste, x0); acuracia.inpc.real.media
+```
+
+Obtivemos acurácia de `r round(acuracia.inpc.real.media*100,2)`%.
+
+
+```{r} 
+intervalos.inpc <- cut(dados_analise$inpc, breaks=c(quantile(dados_analise$inpc, probs=seq(0,1, by=0.25))), labels=c(1,2,3,4))
+intervalos.inpc[is.na(intervalos.inpc)] <- 1
+
+matriz.transicao.inpc <- matriz.transicao(intervalos.inpc)
+
+intervalos.inpc.teste <- cut(dados_teste$inpc, breaks=c(quantile(dados_analise$inpc, probs=seq(0,1, by=0.25))), labels=c(1,2,3,4))
+  
+x0 <- intervalos.inpc[length(intervalos.inpc)]
+
+previsao <- prever.todos(matriz.transicao.inpc, intervalos.inpc.teste, x0)
+
+matriz.transicao.inpc
+
+acuracia.inpc.real.quartil <- acuracia(matriz.transicao.inpc, intervalos.inpc.teste, x0); acuracia.inpc.real.quartil
+```
+
+Obtivemos acurácia de `r round(acuracia.inpc.real.quartil*100,2)`%.
 
 ## Índice de preços ao consumidor amplo (IPCA) para alimentos  
 
-Primeiro será calcula da matriz de transição usando os dados de 1992 a 2021
+Faremos uma matriz de transição utilizando a média para os dados entre 1992 a 2021. (88% dos dados)
 
 ```{r}
-intervalos.ipca <- cut(dados1992_2021$ipca_alimentacao, breaks=c(quantile(dados1992_2021$ipca_alimentacao, probs=seq(0,1, by=0.25))), labels=c(1,2,3,4))
+dados1992_2021 <- dados[(dados$data <= "2021-01-01") & (dados$data >= "1992-01-01"),] 
+dados2021_atual <- dados[dados$data > "2021-01-01",] 
+
+intervalos.ipca <- cut(dados1992_2021$ipca_alimentacao, breaks=c(min(dados1992_2021$ipca_alimentacao), mean(dados1992_2021$ipca_alimentacao), max(dados1992_2021$ipca_alimentacao)), labels=c(1,2))
 
 matriz.transicao.ipca <- matriz.transicao(intervalos.ipca)
 
+
 matriz.transicao.ipca
+
+intervalos.ipca.teste <- cut(dados2021_atual$ipca_alimentacao, breaks=c(min(dados1992_2021$ipca_alimentacao), mean(dados1992_2021$ipca_alimentacao), max(dados1992_2021$ipca_alimentacao)), labels=c(1,2))
+
+x0 <- intervalos.ipca[length(intervalos.ipca)]
+
+acuracia.ipca.media <- acuracia(matriz.transicao.ipca, intervalos.ipca.teste, x0); acuracia.ipca.media
 ```
+Obtivemos acurácia de `r round(acuracia.ipca.media*100,2)`%.
 
+# Conclusão
+Nota-se que o modelo de predição usando cadeia de Markov acaba não gerando muita informação para o caso do INPC e IPCA, pois para que se tenha uma boa acurácia, necessita-se de poucos estados. Além disso nota-se pelas matrizes de transição que elas quase sempre tem as maiores probabilidades na diagonal principal, ou seja, para o INPC e IPCA o modelo de Markov sempre irá prever que continue no mesmo estado anterior, na maior parte das vezes.
 
+Dado essas observações, pode-se afirmar que o modelo de Markov é bem simples para prever dados do INPC e IPCA, não gerando muita informação, pois é esperado quase sempre que o estado anterior se mantenha. Além disso, o intervalo que compõe os estados é muito grande, logo saber que ele está em um determinado estado também não é uma informação tão importante.
 
+Para se ter um intervalo menor na previsão, seria necessários muitos estados, porém quanto mais estados, menor a acurácia.
+
+## Referências bibliográficas
+DEBIT, Moedas Brasileiras. (https://www.debit.com.br/tabelas/moedas.php. Acesso em 26/07/2022)
 

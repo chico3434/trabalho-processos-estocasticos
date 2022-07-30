@@ -62,20 +62,20 @@ inpc.quartis.analise <- function(dados) {
   acuracia(matriz.transicao.inpc, intervalos.inpc.teste, x0)
 }
 
-ipca.quartis.analise <- function(dados) {
-  dados1992_2021 <- dados[(dados$data <= "2021-01-01") & (dados$data >= "1992-01-01"),] 
-  dados2021_atual <- dados[dados$data > "2021-01-01",] 
+inpc.intervalo.analise <- function(dados) {
+  dados1979_2019 <- dados[dados$data < "2011-09-01",]
+  dados2019_atual <- dados[dados$data >= "2011-09-01",]
+  quebra <- c(seq(from=min(dados1979_2019$inpc), to=max(dados1979_2019$inpc), by=0.5))
+  intervalos.inpc <- cut(dados1979_2019$inpc, breaks=quebra, labels=1:(length(quebra)-1))
+  intervalos.inpc[is.na(intervalos.inpc)] <- 1
   
-  intervalos.ipca <- cut(dados1992_2021$ipca_alimentacao, breaks=c(quantile(dados1992_2021$ipca_alimentacao, probs=seq(0,1, by=0.25))), labels=c(1,2,3,4))
+  matriz.transicao.inpc <- matriz.transicao(intervalos.inpc)
+
+  intervalos.inpc.teste <- cut(dados2019_atual$inpc, breaks=quebra, labels=1:(length(quebra)-1))
   
-  matriz.transicao.ipca <- matriz.transicao(intervalos.ipca)
+  x0 <- intervalos.inpc[length(intervalos.inpc)]
   
-  print('Matriz de transição')
-  print(matriz.transicao.ipca)
-  
-  intervalos.ipca.teste <- cut(dados2021_atual$ipca_alimentacao, breaks=c(quantile(dados1992_2021$ipca_alimentacao, probs=seq(0,1, by=0.25))), labels=c(1,2,3,4))
-  
-  x0 <- intervalos.ipca[length(intervalos.ipca)]
-  
-  acuracia(matriz.transicao.ipca, intervalos.ipca.teste, x0)
+  previsao <- prever.todos(matriz.transicao.inpc, intervalos.inpc.teste, x0)
+  print(previsao)
+  acuracia(matriz.transicao.inpc, intervalos.inpc.teste, x0)
 }
