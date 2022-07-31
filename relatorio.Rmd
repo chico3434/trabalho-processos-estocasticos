@@ -1,39 +1,46 @@
 ---
-title: "Relatório PE"
-author: "Antonia Xavier, Francisco Rubens, Maria Sylvia"
+title: "Relatório de Processos Estocásticos: Análise preditiva do INPC e IPCA alimentação utilizando Cadeias de Markov"
+author: "Antonia Xavier, Francisco do Amaral, Maria Sylvia Guimarães"
 date: "15/07/2022"
 output:
   word_document: default
   pdf_document: default
+  html_document:
+    df_print: paged
 ---
+
 # Introdução  
 
-  O objetivo deste trabalho é utilizar cadeias de Markov para montar um modelo preditivo para dois dos principais índices de preços do Brasil: o índice nacional de preços ao consumidor (INPC) índice de preços ao consumidor amplo (IPCA) para alimentos. Avaliamos a homogeneidade da cadeia e como o número de categorias influencia a acurácia da predição, chegando à conclusão de que a melhor matriz para a predição do IPCA e do INPC são aquelas as quais utiliza-se a média dos valores, obteve-se uma acurácia de 97% e de 100%, respectivamente.
+  O objetivo deste trabalho é utilizar cadeias de Markov para montar um modelo preditivo para dois dos principais índices de preços do Brasil: o índice nacional de preços ao consumidor (INPC) índice de preços ao consumidor amplo (IPCA) para alimentos. Avaliamos a homogeneidade da cadeia e como o número de categorias influencia a acurácia da predição, chegando à conclusão de que a melhor matriz para a predição do IPCA e do INPC são aquelas as quais utiliza-se a média dos valores, obteve-se uma acurácia de 94.4% e de 100%, respectivamente.
 
 # Materiais e métodos  
 
   O IPCA e INPC são ambos coletados de forma sistemática pelo SNIPC - Sistema Nacional de índice de preços ao consumidor - pelo IBGE. A população relativa ao IPCA são famílias de 1 a 40 salários mínimos, enquanto a do INPC abrange famílias de 1 a 5 salários mínimos, seja qual for a fonte de tal renda. A abrangência da pesquisa é restrita à áreas urbanas e regiões metropolitanas das cidades de Belém, Fortaleza, Recife, Salvador, Belo Horizonte, Vitória, Rio de Janeiro, São Paulo, Curitiba, Porto Alegre, Goiânia, Campo Grande, Rio Branco, São Luís, Brasília e Aracaju.
+  
   Para utilizar cadeias de Markov neste trabalho foi necessário utilizar como hipóteses que tanto o INPC quanto o IPCA para o grupo “Alimentação e bebidas” podem ser descritos como processos estocásticos. Ou seja, que são variáveis aleatórias indexadas por uma variável, neste caso tempo, sendo este medido em meses. E mais além supomos que se trata de um processo Markoviano, ou seja, os valores de ambos os índices de preços em determinado mês sofrem influência somente de seus valores no mês anterior e não mais que isso.
+  
   Definimos a classe dos estados a partir da divisão em quartis, sendo o intervalo até o primeiro quartil o estado 0, o intervalo entre o primeiro e o segundo quartis o estado 1, o intervalo entre o segundo e o terceiro quartis o estado 2 e o intervalo entre o terceiro e o quarto quartis o estado 3. Os dados foram divididos em 75% para a construção da cadeia e 25% para realizar a avalição da qualidade da predição e o estado predito no tempo foi definido a partir da classe com maior probabilidade predita.  
 
   
 # Análise
 
-  Utilizamos a base de dados dos índices INPC e IPCA disponibilizada pela professora. A base foi convertida para o formato xlsx, e será esse arquivo que será lido. Separamos os dados em 25% para teste e 75% para analise Carregamos também o pacote ggplot2 que será utilizado para fazer as análises. 
+  Utilizamos a base de dados dos índices INPC e IPCA disponibilizada pela professora. A base foi convertida para o formato xlsx, e será esse arquivo que será lido. Separamos os dados em 25% para teste e 75% para analise Carregamos também os pacotes ggplot2 e igraph que será utilizado para fazer as análises. 
   
 ```{r warning=FALSE}
 
 library(readxl)
 library(ggplot2)
+library(igraph)
+
 
 dados <- read_excel("INPC_IPCA.xlsx", 
                     col_types = c("date", "numeric", "numeric", "text", "text"))
 
 colnames(dados) <-  c("data", "inpc", "ipca_alimentacao", "ipca_habitacao", "ipca_saude")
 
-dados_analise <- dados[dados$data < "2011-09-01",]
+dados_analise <- dados[dados$data < "2018-01-01",]
 
-dados_teste <- dados[dados$data >= "2011-09-01",]
+dados_teste <- dados[dados$data >= "2018-01-01",]
 
 ```
 
@@ -149,8 +156,10 @@ matriz.transicao.inpc
 
 acuracia.inpc.media <- acuracia(matriz.transicao.inpc, intervalos.inpc.teste, x0);acuracia.inpc.media
 ```
-
+  
   A nossa matriz de transição nos diz que, se em determinado mês o valor do INPC é menor que `r round(mean(dados_analise$inpc),2)`, a probabilidade dele continuar abaixo da média é de `r round(matriz.transicao.inpc[1,1]*100,2)`%, que é o valor da primeira linha e primeira coluna. A probabilidade dele crescer para um valor acima da média é de por volta de `r round(matriz.transicao.inpc[1,2]*100,2)`%. Enquanto isso, se o valor em determinado mês estiver acima da média de `r round(mean(dados_analise$inpc),2)`, há `r round(matriz.transicao.inpc[2,1]*100,2)`% de chances de no mês seguinte o valor do INPC cair para abaixo desse valor contra `r round(matriz.transicao.inpc[2,2]*100,2)`% de chances de continuar acima da média. 
+ 
+ Observe o que acontece se aumentarmos nossa quantidade de intervalos, usando os quartis.
 
 ```{r}
 intervalos.inpc <- cut(dados_analise$inpc, breaks=c(quantile(dados_analise$inpc, probs=seq(0,1, by=0.25))), labels=c(1,2,3,4))
@@ -163,13 +172,23 @@ intervalos.inpc.teste <- cut(dados_teste$inpc, breaks=c(quantile(dados_analise$i
 x0 <- intervalos.inpc[length(intervalos.inpc)]
 
 previsao <- prever.todos(matriz.transicao.inpc, intervalos.inpc.teste, x0)
-
 matriz.transicao.inpc
 
-acuracia.inpc.quartis <- acuracia(matriz.transicao.inpc, intervalos.inpc.teste, x0); acuracia.inpc.quartis
+acuracia.inpc.quartis <- acuracia(matriz.transicao.inpc, intervalos.inpc.teste, x0);
+
+
+acuracia.inpc.quartis
+```
+  Testamos a acurácia para essa predição usando os dados entre agosto de 2011 e  maio de 2022 e encontramos que `r round(acuracia.inpc.media*100,2)`% dos dados desse período foram descritos corretamente conforme essa matriz. Além de utilizar as médias, fizemos testes a partir dos intervalos interquartílicos, entretanto nossa acurácia foi significativamente menor, atingindo o valor aproximado de `r round(acuracia.inpc.quartis*100,2)`%.
+  
+  
+  Podemos também visualizar a matriz de transição através de um grafo, como o abaixo. Através dele fica claro que nossa cadeia é ergódica, uma vez que todos os estados são ergódicos.  
+```{r}
+g <- graph_from_adjacency_matrix(as.matrix(matriz.transicao.inpc),mode = "directed",  weighted = T)
+plot(g,vertex.color="pink", edge.curved=seq(-0.5, 0.5, length = ecount(g)))
+
 ```
   
-  Testamos a acurácia para essa predição usando os dados entre agosto de 2011 e  maio de 2022 e encontramos que `r round(acuracia.inpc.media*100,2)`% dos dados desse período foram descritos corretamente conforme essa matriz. Além de utilizar as médias, fizemos testes a partir dos intervalos interquartílicos, entretanto nossa acurácia foi significativamente menor, atingindo o valor aproximado de `r round(acuracia.inpc.quartis*100,2)`%.
   
   Por fim, refaremos as matrizes e os cálculos das acurácias levando em consideração somente os dados do plano Real.
   
@@ -191,9 +210,12 @@ previsao <- prever.todos(matriz.transicao.inpc, intervalos.inpc.teste, x0)
 matriz.transicao.inpc
 
 acuracia.inpc.real.media <- acuracia(matriz.transicao.inpc, intervalos.inpc.teste, x0); acuracia.inpc.real.media
+
+g <- graph_from_adjacency_matrix(as.matrix(matriz.transicao.inpc),mode = "directed",  weighted = T)
+plot(g,vertex.color="green", edge.curved=seq(-0.5, -0.5, length = ecount(g))) 
 ```
 
-Obtivemos acurácia de `r round(acuracia.inpc.real.media*100,2)`%.
+Obtivemos acurácia de `r round(acuracia.inpc.real.media*100,2)`%, que é um valor razoavelmente alto, entretanto significativamente menor que a acurácia encontrada usando uma série temporal maior, mesmo que os dados do INPC durante o plano real tenham uma amplitude menor. Nossa cadeia é irredtível e aperiódica, portanto ergódica. 
 
 
 ```{r} 
@@ -211,34 +233,123 @@ previsao <- prever.todos(matriz.transicao.inpc, intervalos.inpc.teste, x0)
 matriz.transicao.inpc
 
 acuracia.inpc.real.quartil <- acuracia(matriz.transicao.inpc, intervalos.inpc.teste, x0); acuracia.inpc.real.quartil
+
+g <- graph_from_adjacency_matrix(as.matrix(matriz.transicao.inpc),mode = "directed",  weighted = T)
+plot(g,vertex.color="green", edge.curved=seq(-0.5, -0.5, length = ecount(g))) 
 ```
 
 Obtivemos acurácia de `r round(acuracia.inpc.real.quartil*100,2)`%.
 
 ## Índice de preços ao consumidor amplo (IPCA) para alimentos  
 
-Faremos uma matriz de transição utilizando a média para os dados entre 1992 a 2021. (88% dos dados)
+Faremos uma matriz de transição utilizando a média para os dados entre 1992 a 2019 (cerca de 90% dos dados) e testaremos a acurácia dessa matriz usando os dados restantes. 
 
 ```{r}
-dados1992_2021 <- dados[(dados$data <= "2021-01-01") & (dados$data >= "1992-01-01"),] 
-dados2021_atual <- dados[dados$data > "2021-01-01",] 
+dados1992_2019 <- dados[(dados$data <= "2019-05-01") & (dados$data >= "1992-01-01"),] 
+dados2019_atual <- dados[dados$data >"2019-05-01",] 
 
-intervalos.ipca <- cut(dados1992_2021$ipca_alimentacao, breaks=c(min(dados1992_2021$ipca_alimentacao), mean(dados1992_2021$ipca_alimentacao), max(dados1992_2021$ipca_alimentacao)), labels=c(1,2))
+intervalos.ipca <- cut(dados1992_2019$ipca_alimentacao, breaks=c(min(dados1992_2019$ipca_alimentacao), mean(dados1992_2019$ipca_alimentacao), max(dados1992_2019$ipca_alimentacao)), labels=c(1,2))
 
 matriz.transicao.ipca <- matriz.transicao(intervalos.ipca)
 
 
 matriz.transicao.ipca
 
-intervalos.ipca.teste <- cut(dados2021_atual$ipca_alimentacao, breaks=c(min(dados1992_2021$ipca_alimentacao), mean(dados1992_2021$ipca_alimentacao), max(dados1992_2021$ipca_alimentacao)), labels=c(1,2))
+intervalos.ipca.teste <- cut(dados2019_atual$ipca_alimentacao, breaks=c(min(dados1992_2019$ipca_alimentacao), mean(dados1992_2019$ipca_alimentacao), max(dados1992_2019$ipca_alimentacao)), labels=c(1,2))
 
 x0 <- intervalos.ipca[length(intervalos.ipca)]
 
 acuracia.ipca.media <- acuracia(matriz.transicao.ipca, intervalos.ipca.teste, x0); acuracia.ipca.media
+
+
+
+
 ```
-Obtivemos acurácia de `r round(acuracia.ipca.media*100,2)`%.
+Obtivemos acurácia de `r round(acuracia.ipca.media*100,2)`%. Um valor muito bom. Nota-se pela nossa matriz de transição que a probabilidade de sair de um estado é bem baixa em comparação a probabilidade de permanecer no mesmo. Já havíamos observado esse comportamento nas outras matrizes de transição. Vejamos, agora, o grafo para essa matriz de transição 
+```{r}
+
+g <- graph_from_adjacency_matrix(as.matrix(matriz.transicao.ipca),mode = "directed",  weighted = T)
+plot(g,vertex.color="green", edge.curved=seq(-0.5, -0.5, length = ecount(g))) 
+```
+Nota-se que há somente uma classe, os nossos estados são também aperiódicos e recorrentes. Por ser irredutível e aperiódica, a cadeia é ergódica. Novamente, vamos dividir os intervalos em intervalos interquartílicos e ver como isso impacta nossa matriz de transição e nossa acurácia.
+```{r}
+dados_analise <- dados[(dados$data <= "2019-05-01") & (dados$data >= "1992-01-01"),] 
+dados_teste <- dados[dados$data >"2019-05-01",] 
+
+intervalos.ipca <- cut(dados_analise$ipca_alimentacao, breaks=c(quantile(dados_analise$ipca_alimentacao, probs=seq(0,1, by=0.25))), labels=c(1,2,3,4))
+intervalos.ipca[is.na(intervalos.ipca)] <- 1
+
+matriz.transicao.ipca <- matriz.transicao(intervalos.ipca)
+
+intervalos.ipca.teste <- cut(dados_teste$ipca_alimentacao, breaks=c(quantile(dados_analise$ipca_alimentacao, probs=seq(0,1, by=0.25))), labels=c(1,2,3,4))
+  
+x0 <- intervalos.ipca[length(intervalos.ipca)]
+
+previsao <- prever.todos(matriz.transicao.ipca, intervalos.ipca.teste, x0)
+matriz.transicao.ipca
+
+acuracia.ipca.quartis <- acuracia(matriz.transicao.ipca, intervalos.ipca.teste, x0);
+
+
+acuracia.ipca.quartis
+
+
+g <- graph_from_adjacency_matrix(as.matrix(matriz.transicao.ipca),mode = "directed",  weighted = T)
+plot(g,vertex.color="green", edge.curved=seq(-0.5, -0.5, length = ecount(g))) 
+```
+
+Nota-se que a acurácia diminui significativamente ao usar intervalos interquartílicos para a nossa matriz de transição, chegando ao valor de `r round(acuracia.ipca.quartis*100,2)`%. da mesma forma que aconteceu quando calculamos usando o IPCA. Entretanto, apesar de tudo, o grafo preserva as suas propriedades mesmo trocando o número de intervalos. Por fim analisaremos a matriz de transição em relação a média e ao intervalo interquartílico para o Real, da mesma forma que foi feito o INPC. 
+```{r}
+
+dados_analise <- real[real$data < "2019-05-01",]
+
+dados_teste <- real[real$data >= "2019-05-01",]
+
+intervalos.ipca <- cut(dados_analise$ipca_alimentacao, breaks=c(quantile(dados_analise$ipca_alimentacao, probs=seq(0,1, by=0.5))), labels=c(1,2))
+intervalos.ipca[is.na(intervalos.ipca)] <- 1
+
+matriz.transicao.ipca <- matriz.transicao(intervalos.ipca)
+
+intervalos.ipca.teste <- cut(dados_teste$ipca_alimentacao, breaks=c(quantile(dados_analise$ipca_alimentacao, probs=seq(0,1, by=0.5))), labels=c(1,2))
+  
+x0 <- intervalos.ipca[length(intervalos.ipca)]
+
+previsao <- prever.todos(matriz.transicao.ipca, intervalos.ipca.teste, x0)
+matriz.transicao.ipca
+
+acuracia.ipca.real.media <- acuracia(matriz.transicao.ipca, intervalos.ipca.teste, x0);
+
+
+acuracia.ipca.real.media
+
+```
+
+Nossa acurácia encontrada foi de `r round(acuracia.ipca.real.media*100,2)`%, menor que o valor de `r round(acuracia.ipca.media*100,2)`% da mesma forma que aconteceu quando usamos os dados do INPC. Vejamos como é o comportamento quando utilizamos intervalos quartílicos. 
+```{r}
+
+
+intervalos.ipca <- cut(dados_analise$ipca_alimentacao, breaks=c(quantile(dados_analise$ipca_alimentacao, probs=seq(0,1, by=0.25))), labels=1:4)
+intervalos.ipca[is.na(intervalos.ipca)] <- 1
+
+matriz.transicao.ipca <- matriz.transicao(intervalos.ipca)
+
+intervalos.ipca.teste <- cut(dados_teste$ipca_alimentacao, breaks=c(quantile(dados_analise$ipca_alimentacao, probs=seq(0,1, by=0.25))), labels=1:4)
+  
+x0 <- intervalos.ipca[length(intervalos.ipca)]
+
+previsao <- prever.todos(matriz.transicao.ipca, intervalos.ipca.teste, x0)
+matriz.transicao.ipca
+
+acuracia.ipca.real.quartis <- acuracia(matriz.transicao.ipca, intervalos.ipca.teste, x0);
+
+
+acuracia.ipca.real.quartis
+
+```
+Apesar de a acurácia encontrada de `r round(acuracia.ipca.real.quartis*100,2)`% ser menor quando usamos intervalos interquartílicos em relação à acurácia com intervalos da média média para o plano real, notamos que o valor da acurácia para os intervalos interquartílicos para o plano real é melhor que o valor de `r round(acuracia.ipca.quartis*100,2)`% que foi calculada usando todo o período de 1992 a 2022 independente da moeda.
 
 # Conclusão
+
 Nota-se que o modelo de predição usando cadeia de Markov acaba não gerando muita informação para o caso do INPC e IPCA, pois para que se tenha uma boa acurácia, necessita-se de poucos estados. Além disso nota-se pelas matrizes de transição que elas quase sempre tem as maiores probabilidades na diagonal principal, ou seja, para o INPC e IPCA o modelo de Markov sempre irá prever que continue no mesmo estado anterior, na maior parte das vezes.
 
 Dado essas observações, pode-se afirmar que o modelo de Markov é bem simples para prever dados do INPC e IPCA, não gerando muita informação, pois é esperado quase sempre que o estado anterior se mantenha. Além disso, o intervalo que compõe os estados é muito grande, logo saber que ele está em um determinado estado também não é uma informação tão importante.
@@ -246,5 +357,11 @@ Dado essas observações, pode-se afirmar que o modelo de Markov é bem simples 
 Para se ter um intervalo menor na previsão, seria necessários muitos estados, porém quanto mais estados, menor a acurácia.
 
 ## Referências bibliográficas
-DEBIT, Moedas Brasileiras. (https://www.debit.com.br/tabelas/moedas.php. Acesso em 26/07/2022)
+
+
+* Moedas Brasileiras. DEBIT. Disponível em: https://www.debit.com.br/tabelas/moedas.php. Acesso em 26 jul. 2022)
+* IPCA - Índice Nacional de Preços ao Consumidor Amplo: O que é. [S. l.], 2022. Disponível em: https://www.ibge.gov.br/estatisticas/economicas/precos-e-custos/9256-indice-nacional-de-precos-ao-consumidor-amplo.html?=&t=destaques. Acesso em: 18 jul. 2022.
+* INPC -INPC - Índice Nacional de Preços ao Consumidor: O que é. [S. l.], 2022. Disponível em: https://www.ibge.gov.br/estatisticas/economicas/precos-e-custos/9258-indice-nacional-de-precos-ao-consumidor.html?t=o-que-e. Acesso em: 18 jul. 2022.
+* Apostila de Processos Estocásticos: Cadeias de Markov - parte II 
+* Apostila de Processos Estocásticos: Cadeias de Markov - parte I 
 
